@@ -97,7 +97,7 @@ def test_executes_arbitary_code():
         'pic': GraphQLField(
             args={'size': GraphQLArgument(GraphQLInt)},
             type=GraphQLString,
-            resolver=lambda obj, args, *_: obj.pic(args['size']),
+            resolver=lambda obj, info, size: obj.pic(size),
         ),
         'deep': GraphQLField(DeepDataType),
         'promise': GraphQLField(DataType),
@@ -119,7 +119,7 @@ def test_executes_arbitary_code():
 
 def test_merges_parallel_fragments():
     ast = parse('''
-        { a, ...FragOne, ...FragTwo }
+        { a, deep {...FragOne, ...FragTwo} }
 
         fragment FragOne on Type {
             b
@@ -148,14 +148,15 @@ def test_merges_parallel_fragments():
     assert result.data == \
         {
             'a': 'Apple',
-            'b': 'Banana',
-            'c': 'Cherry',
             'deep': {
                 'b': 'Banana',
                 'c': 'Cherry',
-                'deeper': {
+                'deep': {
                     'b': 'Banana',
-                    'c': 'Cherry'}}
+                    'c': 'Cherry',
+                    'deeper': {
+                        'b': 'Banana',
+                        'c': 'Cherry'}}}
         }
 
 
@@ -189,9 +190,9 @@ def test_correctly_threads_arguments():
         }
     '''
 
-    def resolver(_, args, *_args):
-        assert args['numArg'] == 123
-        assert args['stringArg'] == 'foo'
+    def resolver(source, info, numArg, stringArg):
+        assert numArg == 123
+        assert stringArg == 'foo'
         resolver.got_here = True
 
     resolver.got_here = False
@@ -436,7 +437,7 @@ def test_does_not_include_arguments_that_were_not_set():
         {
             'field': GraphQLField(
                 GraphQLString,
-                resolver=lambda data, args, *_: args and json.dumps(args, sort_keys=True, separators=(',', ':')),
+                resolver=lambda source, info, **args: args and json.dumps(args, sort_keys=True, separators=(',', ':')),
                 args={
                     'a': GraphQLArgument(GraphQLBoolean),
                     'b': GraphQLArgument(GraphQLBoolean),
@@ -471,7 +472,7 @@ def test_fails_when_an_is_type_of_check_is_not_met():
         fields={
             'value': GraphQLField(GraphQLString),
         },
-        is_type_of=lambda obj, context, info: isinstance(obj, Special)
+        is_type_of=lambda obj, info: isinstance(obj, Special)
     )
 
     schema = GraphQLSchema(
